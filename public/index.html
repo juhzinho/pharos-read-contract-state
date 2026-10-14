@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pharos Season of AI · Doc Search · Contract Reader · Event Monitor</title>
+  <meta name="description" content="Three Pharos Season of AI builds: search the Pharos docs via Docs MCP, read live contract state and watch Transfer events via Chain MCP." />
+  <style>
+    :root {
+      --bg: #f5f6fb; --card: #fff; --ink: #0d1330; --muted: #5b6380; --line: #e3e6f0;
+      --brand: #0b1fd1; --brand-soft: #eef0ff; --ok: #0a7d4f; --ok-soft: #e7f6ef; --warn: #b42318; --warn-soft: #fdf0ee;
+      --mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
+    header { background: var(--card); border-bottom: 1px solid var(--line); }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+    .top { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 12px; }
+    .brand { font-weight: 700; letter-spacing: .02em; display: flex; gap: 10px; align-items: center; }
+    .brand small { font-weight: 500; color: var(--muted); letter-spacing: 0; }
+    .lang button { border: 1px solid var(--line); background: var(--card); padding: 6px 12px; cursor: pointer; font: inherit; }
+    .lang button:first-child { border-radius: 8px 0 0 8px; } .lang button:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
+    .lang button.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+    nav.tabs { display: flex; gap: 4px; overflow-x: auto; }
+    nav.tabs a { padding: 12px 16px; color: var(--muted); text-decoration: none; border-bottom: 3px solid transparent; white-space: nowrap; font-weight: 600; font-size: 14px; }
+    nav.tabs a.on { color: var(--brand); border-bottom-color: var(--brand); }
+    h1 { font-size: 30px; margin: 32px 0 6px; } .lead { color: var(--muted); margin: 0 0 24px; max-width: 780px; }
+    .grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 20px; align-items: start; padding-bottom: 40px; }
+    @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
+    .stack { padding-bottom: 40px; display: grid; gap: 20px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+    .card h2 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--brand); margin: 0 0 14px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; text-transform: uppercase; letter-spacing: .05em; }
+    input, select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; background: #fff; }
+    input.mono { font-family: var(--mono); font-size: 13px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; } .row > * { flex: 1; min-width: 140px; }
+    .btn { margin-top: 14px; width: 100%; padding: 12px; border: 0; border-radius: 8px; background: var(--brand); color: #fff; font: 600 15px system-ui, sans-serif; cursor: pointer; }
+    .btn:disabled { opacity: .55; cursor: progress; }
+    .btn.stop { background: var(--warn); }
+    .status { margin-top: 12px; font-size: 13px; color: var(--muted); min-height: 20px; }
+    .status.err { color: var(--warn); }
+    .badge { display: inline-block; background: var(--brand-soft); color: var(--brand); border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 14px; }
+    td { padding: 8px 0; border-top: 1px solid var(--line); vertical-align: top; }
+    #rows td:first-child { color: var(--muted); width: 38%; padding-right: 12px; }
+    .addr { font-family: var(--mono); font-size: 12.5px; word-break: break-all; }
+    .addr a, .ev a { color: var(--ink); }
+    .tag { display: inline-block; margin-left: 6px; font-family: system-ui, sans-serif; font-size: 11px; background: #f0f2f7; color: var(--muted); border-radius: 6px; padding: 1px 7px; }
+    .summary { margin-top: 16px; background: var(--brand-soft); border-radius: 10px; padding: 14px 16px; }
+    .summary b { display: block; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--brand); margin-bottom: 4px; }
+    .meta { margin-top: 12px; font-size: 12px; color: var(--muted); word-break: break-word; }
+    .meta code, code { font-family: var(--mono); font-size: 12.5px; background: #f0f2f7; border-radius: 4px; padding: 0 4px; }
+    .chat { height: 420px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: #fafbfe; }
+    .msg { margin: 0 0 12px; white-space: pre-wrap; word-break: break-word; }
+    .msg.you { text-align: right; } .msg.you span { display: inline-block; background: var(--brand); color: #fff; padding: 8px 12px; border-radius: 12px 12px 2px 12px; }
+    .msg.bot span { display: inline-block; background: #fff; border: 1px solid var(--line); padding: 10px 12px; border-radius: 12px 12px 12px 2px; }
+    .steps { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin: 0 0 6px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+    .chips button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 10px; font-size: 12.5px; cursor: pointer; }
+    .chips button:disabled { opacity: .5; cursor: progress; }
+    .ask { display: flex; gap: 8px; } .ask .btn { margin: 0; width: auto; padding: 0 18px; }
+    .answer { line-height: 1.6; word-break: break-word; }
+    .answer pre { background: #0d1330; color: #e8ebff; padding: 12px 14px; border-radius: 8px; overflow-x: auto; font: 12.5px/1.5 var(--mono); }
+    .answer a { color: var(--brand); }
+    .sources { margin: 16px 0 0; padding-left: 20px; } .sources li { margin: 4px 0; } .sources a { color: var(--brand); word-break: break-all; }
+    .notice { background: var(--warn-soft); border-radius: 10px; padding: 14px 16px; }
+    .notice b { color: var(--warn); }
+    .results { list-style: none; padding: 0; margin: 0; } .results li { padding: 10px 0; border-top: 1px solid var(--line); }
+    .results a { font-weight: 600; color: var(--brand); } .results small { display: block; color: var(--muted); }
+    .live { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+    .dot.on { background: var(--ok); box-shadow: 0 0 0 0 rgba(10,125,79,.5); animation: pulse 1.6s infinite; }
+    @keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(10,125,79,0); } 100% { box-shadow: 0 0 0 0 rgba(10,125,79,0); } }
+    .ev { width: 100%; font-size: 13.5px; }
+    .ev th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 6px 8px 6px 0; font-weight: 600; }
+    .ev td { padding: 8px 8px 8px 0; }
+    .ev .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .ev tr.new td { animation: flash 2.5s ease-out; }
+    @keyframes flash { from { background: var(--ok-soft); } to { background: transparent; } }
+    .kind { font-size: 11px; font-weight: 700; border-radius: 6px; padding: 1px 7px; background: #f0f2f7; color: var(--muted); }
+    .kind.mint { background: var(--ok-soft); color: var(--ok); } .kind.burn { background: var(--warn-soft); color: var(--warn); }
+    .newtag { font-size: 10.5px; font-weight: 700; color: #fff; background: var(--ok); border-radius: 6px; padding: 1px 6px; margin-left: 6px; }
+    .scroll { overflow-x: auto; }
+    .empty { color: var(--muted); padding: 16px 0; }
+    footer { color: var(--muted); font-size: 13px; padding: 0 0 40px; } footer a { color: var(--brand); }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap top">
+      <div class="brand">PHAROS <small data-i18n="tagline"></small></div>
+      <div class="lang"><button data-lang="en">EN</button><button data-lang="pt">PT</button></div>
+    </div>
+    <div class="wrap">
+      <nav class="tabs">
+        <a href="#docs" data-tab="docs" data-i18n="tabDocs"></a>
+        <a href="#read" data-tab="read" data-i18n="tabRead"></a>
+        <a href="#events" data-tab="events" data-i18n="tabEvents"></a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <h1 id="title"></h1>
+    <p class="lead" id="lead"></p>
+
+    <!-- Task 1: Doc-Search -->
+    <div class="stack" data-panel="docs" hidden>
+      <section class="card">
+        <h2 data-i18n="docsTitle"></h2>
+        <form class="ask" id="docsForm">
+          <input id="docsQuestion" autocomplete="off" />
+          <button class="btn" id="docsBtn" type="submit" data-i18n="docsBtn"></button>
+        </form>
+        <div class="row" style="margin-top:4px">
+          <div>
+            <label for="docsMode" data-i18n="docsModeLabel"></label>
+            <select id="docsMode">
+              <option value="ask" data-i18n="docsModeAsk"></option>
+              <option value="search" data-i18n="docsModeSearch"></option>
+            </select>
+          </div>
+        </div>
+        <div class="chips" id="docsChips"></div>
+        <div class="status" id="docsStatus"></div>
+      </section>
+      <section class="card" id="docsResult" hidden>
+        <h2 id="docsResultTitle"></h2>
+        <div id="docsBody"></div>
+        <div class="meta" id="docsMeta"></div>
+      </section>
+    </div>
+
+    <!-- Task 2: Read Contract State -->
+    <div class="grid" data-panel="read" hidden>
+      <section class="card">
+        <h2 data-i18n="readTitle"></h2>
+        <form id="readForm">
+          <div class="row">
+            <div>
+              <label for="preset" data-i18n="contractLabel"></label>
+              <select id="preset">
+                <option value="USDC">USDC (Circle)</option>
+                <option value="WPROS">WPROS (Wrapped PROS)</option>
+                <option value="custom" data-i18n="custom"></option>
+              </select>
+            </div>
+          </div>
+          <input id="custom" class="mono" placeholder="0x…" hidden style="margin-top:8px" />
+          <label for="holder" data-i18n="walletLabel"></label>
+          <input id="holder" class="mono" />
+          <button class="btn" id="readBtn" type="submit" data-i18n="readBtn"></button>
+        </form>
+        <div class="status" id="readStatus"></div>
+        <div id="result" hidden>
+          <div><span class="badge" id="blockBadge"></span></div>
+          <table id="rows"></table>
+          <div class="summary"><b data-i18n="plain"></b><span id="summary"></span></div>
+          <div class="meta" id="meta"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 data-i18n="agentTitle"></h2>
+        <div class="chat" id="chat"></div>
+        <div class="chips" id="chips"></div>
+        <form class="ask" id="askForm">
+          <input id="question" autocomplete="off" />
+          <button class="btn" id="askBtn" type="submit" data-i18n="send"></button>
+        </form>
+      </section>
+    </div>
+
+    <!-- Task 3: Event/Log Monitor -->
+    <div class="stack" data-panel="events" hidden>
+      <section class="card">
+        <h2 data-i18n="evTitle"></h2>
+        <div class="row">
+          <div>
+            <label for="evToken" data-i18n="evToken"></label>
+            <select id="evToken">
+              <option value="USDC">USDC (Circle)</option>
+              <option value="WPROS">WPROS (Wrapped PROS)</option>
+            </select>
+          </div>
+          <div>
+            <label for="evLookback" data-i18n="evLookback"></label>
+            <select id="evLookback">
+              <option value="100">100</option>
+              <option value="300" selected>300</option>
+              <option value="1000">1000</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn" id="evBtn" type="button"></button>
+        <div class="status" id="evStatus"></div>
+        <div class="meta" id="evFilter"></div>
+      </section>
+      <section class="card">
+        <h2 id="evListTitle"></h2>
+        <div class="scroll">
+          <table class="ev">
+            <thead><tr><th data-i18n="evBlock"></th><th data-i18n="evKind"></th><th data-i18n="evAmount"></th><th data-i18n="evFrom"></th><th data-i18n="evTo"></th><th data-i18n="evTx"></th></tr></thead>
+            <tbody id="evRows"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="evEmpty"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="wrap" id="footer"></footer>
+
+  <script>
+    const GITHUB = "https://github.com/juhzinho";
+    const REPOS = { docs: "pharos-doc-search-cli", read: "pharos-read-contract-state", events: "pharos-event-monitor" };
+    const I18N = {
+      en: {
+        tagline: "Agent Arena · Season of AI",
+        tabDocs: "1 · Doc Search", tabRead: "2 · Contract State", tabEvents: "3 · Event Monitor",
+        titles: { docs: "Pharos Doc Search", read: "Pharos Contract Reader", events: "Pharos Event Monitor" },
+        leads: {
+          docs: "Ask the Pharos documentation a question and get a concise answer with links to the source pages, through the Developer Docs MCP. If the docs don't cover it, it says so instead of inventing an answer.",
+          read: "Reads the live state of any Pharos mainnet contract through Chain MCP — every value pinned to the same block — and explains it in plain language. Ask the agent in English or Portuguese.",
+          events: "Watches a token's Transfer events on Pharos mainnet through Chain MCP — get_logs filtered by the contract address and the Transfer event signature — and shows each new one as it happens, with no duplicates.",
+        },
+        docsTitle: "Ask the Pharos docs", docsBtn: "Ask", docsPlaceholder: "e.g. How do I deploy a contract?",
+        docsModeLabel: "Mode", docsModeAsk: "Answer with sources (askQuestion)", docsModeSearch: "Search pages (searchDocumentation)",
+        docsExamples: ["How do I deploy a contract?", "What is the chain ID and RPC URL of Pharos mainnet?", "Where is the official token registry?", "What is the recipe for brazilian feijoada?"],
+        docsAsking: "Asking the Docs MCP… (usually 5–15 s)", docsAnswer: "Answer", docsSources: "Sources", docsResults: "Matching pages",
+        docsNone: "No good answer found in the Pharos docs.", docsSaid: "Docs MCP reply:", docsTip: "Try other keywords, or switch the mode to “Search pages”.",
+        docsNoResults: "No pages matched.", docsMeta: (tool, s) => `Developer Docs MCP · ${tool} · ${s}s`,
+        readTitle: "Read contract state", contractLabel: "Contract", custom: "Other address…", walletLabel: "Wallet (optional)", walletPlaceholder: "0x… (optional)",
+        readBtn: "Read via Chain MCP", reading: "Reading via Chain MCP… (usually 5–15 s)", plain: "In plain language",
+        block: (b) => `Read at block ${b}`, explorer: "View on explorer", calls: (n, c, s) => `Chain MCP calls (${n}): ${c} · ${s}s`,
+        agentTitle: "Ask the agent", send: "Ask", placeholder: "e.g. Who owns the USDC contract?", thinking: "Thinking…",
+        welcome: "Hi! I read Pharos contracts through Chain MCP. Ask me about a token, its owner, supply, pause state, upgradeability or a wallet balance.",
+        examples: ["What is the USDC contract?", "Who owns it?", "Is it upgradeable?", "How much WPROS is there?", "What is the current block?"],
+        error: "Something went wrong", invalid: "Paste a valid address: 0x followed by 40 characters.",
+        evTitle: "Watch Transfer events", evToken: "Token", evLookback: "Initial history (blocks)",
+        evStart: "Start monitoring", evStop: "Stop monitoring", evLoading: "Loading history via Chain MCP…",
+        evLive: (b, n) => `Live — checked up to block ${b}. Next check in ${n}s.`, evStopped: (b) => `Stopped at block ${b}.`,
+        evRetry: (m) => `${m} Next try in a few seconds.`,
+        evFilter: (addr, topic, calls) => `get_logs filter: address <code>${addr}</code> · topic0 <code>${topic}</code> (Transfer(address,address,uint256)) · last cycle: ${calls}`,
+        evList: (n, fresh) => `Events (${n})` + (fresh ? ` · ${fresh} new since you started` : ""),
+        evEmptyIdle: "Press “Start monitoring” to load recent transfers and keep watching for new ones.",
+        evEmptyNone: "No transfers in this range yet — the monitor keeps watching.",
+        evBlock: "Block", evKind: "Type", evAmount: "Amount", evFrom: "From", evTo: "To", evTx: "Tx", evNew: "NEW",
+        kinds: { transfer: "TRANSFER", mint: "MINT", burn: "BURN" },
+        footer: (tab) => `Data: <a href="https://mcp.pharos.xyz/mcp">Pharos Chain MCP</a> and <a href="https://docs.pharos.xyz">Developer Docs MCP</a> · Read-only: no wallet or private key is ever needed. · <a href="${GITHUB}/${REPOS[tab]}">Source code &amp; README for this task</a>`,
+      },
+      pt: {
+        tagline: "Agent Arena · Season of AI",
+        tabDocs: "1 · Busca na documentação", tabRead: "2 · Estado do contrato", tabEvents: "3 · Monitor de eventos",
+        titles: { docs: "Busca na documentação da Pharos", read: "Leitor de Contratos Pharos", events: "Monitor de Eventos Pharos" },
+        leads: {
+          docs: "Pergunte à documentação da Pharos e receba uma resposta curta com links para as páginas de origem, pelo Developer Docs MCP. Se a documentação não cobre o assunto, ele avisa em vez de inventar uma resposta.",
+          read: "Lê o estado ao vivo de qualquer contrato da mainnet da Pharos pelo Chain MCP — todos os valores do mesmo bloco — e explica em linguagem simples. Pergunte ao agente em português ou inglês.",
+          events: "Acompanha os eventos Transfer de um token na mainnet da Pharos pelo Chain MCP — get_logs filtrado pelo endereço do contrato e pela assinatura do evento Transfer — e mostra cada um novo assim que acontece, sem repetir.",
+        },
+        docsTitle: "Pergunte à documentação", docsBtn: "Perguntar", docsPlaceholder: "ex.: Como faço deploy de um contrato?",
+        docsModeLabel: "Modo", docsModeAsk: "Resposta com fontes (askQuestion)", docsModeSearch: "Buscar páginas (searchDocumentation)",
+        docsExamples: ["Como faço deploy de um contrato?", "Qual o chain ID e o RPC da mainnet da Pharos?", "Onde fica o registro oficial de tokens?", "Qual a receita de feijoada?"],
+        docsAsking: "Perguntando ao Docs MCP… (normalmente 5–15 s)", docsAnswer: "Resposta", docsSources: "Fontes", docsResults: "Páginas encontradas",
+        docsNone: "Nenhuma boa resposta encontrada na documentação da Pharos.", docsSaid: "Resposta do Docs MCP:", docsTip: "Tente outras palavras, ou mude o modo para “Buscar páginas”.",
+        docsNoResults: "Nenhuma página encontrada.", docsMeta: (tool, s) => `Developer Docs MCP · ${tool} · ${s}s`,
+        readTitle: "Ler estado do contrato", contractLabel: "Contrato", custom: "Outro endereço…", walletLabel: "Carteira (opcional)", walletPlaceholder: "0x… (opcional)",
+        readBtn: "Ler via Chain MCP", reading: "Lendo via Chain MCP… (normalmente 5–15 s)", plain: "Em linguagem simples",
+        block: (b) => `Lido no bloco ${b}`, explorer: "Ver no explorer", calls: (n, c, s) => `Chamadas ao Chain MCP (${n}): ${c} · ${s}s`,
+        agentTitle: "Pergunte ao agente", send: "Enviar", placeholder: "ex.: Quem é o dono do USDC?", thinking: "Pensando…",
+        welcome: "Oi! Eu leio contratos da Pharos pelo Chain MCP. Pergunte sobre um token, o dono, o total em circulação, se está pausado, se pode ser atualizado ou o saldo de uma carteira.",
+        examples: ["O que é o contrato do USDC?", "Quem é o dono?", "Ele pode ser atualizado?", "Quanto WPROS existe?", "Qual o bloco atual?"],
+        error: "Algo deu errado", invalid: "Cole um endereço válido: 0x seguido de 40 caracteres.",
+        evTitle: "Acompanhar eventos Transfer", evToken: "Token", evLookback: "Histórico inicial (blocos)",
+        evStart: "Começar a monitorar", evStop: "Parar", evLoading: "Carregando o histórico via Chain MCP…",
+        evLive: (b, n) => `Ao vivo — verificado até o bloco ${b}. Próxima verificação em ${n}s.`, evStopped: (b) => `Parado no bloco ${b}.`,
+        evRetry: (m) => `${m} Tentando de novo em alguns segundos.`,
+        evFilter: (addr, topic, calls) => `Filtro do get_logs: endereço <code>${addr}</code> · topic0 <code>${topic}</code> (Transfer(address,address,uint256)) · último ciclo: ${calls}`,
+        evList: (n, fresh) => `Eventos (${n})` + (fresh ? ` · ${fresh} novos desde que você começou` : ""),
+        evEmptyIdle: "Clique em “Começar a monitorar” para carregar as transferências recentes e continuar acompanhando as novas.",
+        evEmptyNone: "Nenhuma transferência neste intervalo ainda — o monitor continua acompanhando.",
+        evBlock: "Bloco", evKind: "Tipo", evAmount: "Valor", evFrom: "De", evTo: "Para", evTx: "Tx", evNew: "NOVO",
+        kinds: { transfer: "TRANSFER", mint: "MINT", burn: "BURN" },
+        footer: (tab) => `Dados: <a href="https://mcp.pharos.xyz/mcp">Pharos Chain MCP</a> e <a href="https://docs.pharos.xyz">Developer Docs MCP</a> · Somente leitura: nunca é preciso carteira nem chave privada. · <a href="${GITHUB}/${REPOS[tab]}">Código-fonte e README desta tarefa</a>`,
+      },
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    const linkify = (s) => escapeHtml(s).replace(/https:\/\/www\.pharosscan\.xyz\/[^\s<]+/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
+    const shortHex = (v) => `${v.slice(0, 6)}…${v.slice(-4)}`;
+    const EXPLORER = "https://www.pharosscan.xyz";
+    let lang = new URLSearchParams(location.search).get("lang") === "pt" || (!location.search.includes("lang=") && navigator.language?.startsWith("pt")) ? "pt" : "en";
+    let tab = "read";
+    let memory = { contract: null, language: lang };
+    let lastRead = null;
+
+    async function getJson(url) {
+      const res = await fetch(url);
+      const body = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+      if (!body.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      return body;
+    }
+
+    // ---------- tabs and language ----------
+    function showTab(name) {
+      tab = REPOS[name] ? name : "read";
+      document.querySelectorAll("[data-panel]").forEach((p) => (p.hidden = p.dataset.panel !== tab));
+      document.querySelectorAll("nav.tabs a").forEach((a) => a.classList.toggle("on", a.dataset.tab === tab));
+      if (tab !== "events") stopMonitor();
+      if (tab === "read" && !lastRead) read({ address: "USDC" });
+      applyText();
+    }
+
+    function applyText() {
+      const t = I18N[lang];
+      document.documentElement.lang = lang === "pt" ? "pt-BR" : "en";
+      document.querySelectorAll("[data-i18n]").forEach((el) => (el.textContent = t[el.dataset.i18n]));
+      document.querySelectorAll(".lang button").forEach((b) => b.classList.toggle("on", b.dataset.lang === lang));
+      $("title").textContent = t.titles[tab];
+      $("lead").textContent = t.leads[tab];
+      $("footer").innerHTML = t.footer(tab);
+      $("question").placeholder = t.placeholder;
+      $("holder").placeholder = t.walletPlaceholder;
+      $("docsQuestion").placeholder = t.docsPlaceholder;
+      chips($("chips"), t.examples, ask);
+      chips($("docsChips"), t.docsExamples, (q) => { $("docsQuestion").value = q; askDocs(); });
+      if (!$("chat").dataset.used) $("chat").innerHTML = `<p class="msg bot"><span>${escapeHtml(t.welcome)}</span></p>`;
+      if (lastDocs) renderDocs(lastDocs);
+      renderEvents();
+    }
+
+    function chips(container, list, onPick) {
+      container.innerHTML = "";
+      list.forEach((q) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = q;
+        b.onclick = () => onPick(q);
+        container.append(b);
+      });
+    }
+
+    document.querySelectorAll(".lang button").forEach((b) => (b.onclick = () => {
+      lang = b.dataset.lang;
+      applyText();
+      if (tab === "read" && lastRead) read(lastRead);
+    }));
+    window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
+
+    // ---------- Task 1: Doc-Search ----------
+    let lastDocs = null;
+    let docsBusy = false;
+
+    function markdown(text) {
+      const inline = (s) => escapeHtml(s)
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_, label, url) => `<a href="${url}" target="_blank" rel="noopener">${label}</a>`)
+        .replace(/^#+\s*(.+)$/gm, "<b>$1</b>")
+        .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\n/g, "<br>");
+      // Fenced blocks inside list items arrive indented; strip the common indent so the code lines up.
+      const dedent = (code) => {
+        const lines = code.replace(/^\n+|\s+$/g, "").split("\n");
+        const indent = Math.min(...lines.filter((l) => l.trim()).map((l) => l.match(/^ */)[0].length));
+        return lines.map((l) => l.slice(indent)).join("\n");
+      };
+      return String(text)
+        .split(/[ \t]*```[\w-]*\n?([\s\S]*?)```/g)
+        .map((part, i) => (i % 2 ? `<pre>${escapeHtml(dedent(part))}</pre>` : inline(part.replace(/^\n+|\n+$/g, ""))))
+        .join("");
+    }
+
+    function renderDocs(data) {
+      const t = I18N[lang];
+      $("docsResult").hidden = false;
+      $("docsMeta").textContent = t.docsMeta(data.tool, (data.ms / 1000).toFixed(1));
+      if (data.mode === "search") {
+        $("docsResultTitle").textContent = t.docsResults;
+        $("docsBody").innerHTML = data.results.length
+          ? `<ul class="results">${data.results.map((r) => `<li><a href="${escapeHtml(r.link)}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a><small>${escapeHtml(r.link)}</small>${escapeHtml(r.snippet)}</li>`).join("")}</ul>`
+          : `<p class="empty">${t.docsNoResults}</p>`;
+      } else if (!data.found) {
+        $("docsResultTitle").textContent = t.docsAnswer;
+        $("docsBody").innerHTML = `<div class="notice"><b>${t.docsNone}</b><br>${t.docsSaid} ${markdown(data.answer || "—")}<br><br>${t.docsTip}</div>`;
+      } else {
+        $("docsResultTitle").textContent = t.docsAnswer;
+        $("docsBody").innerHTML = `<div class="answer">${markdown(data.answer)}</div><label>${t.docsSources}</label><ol class="sources">${data.sources
+          .map((s) => `<li><a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.title)}</a></li>`)
+          .join("")}</ol>`;
+      }
+    }
+
+    async function askDocs() {
+      const q = $("docsQuestion").value.trim();
+      if (!q || docsBusy) return;
+      const t = I18N[lang];
+      docsBusy = true;
+      $("docsBtn").disabled = true;
+      document.querySelectorAll("#docsChips button").forEach((b) => (b.disabled = true));
+      $("docsStatus").className = "status";
+      $("docsStatus").textContent = t.docsAsking;
+      try {
+        lastDocs = await getJson(`/api/docs?${new URLSearchParams({ q, mode: $("docsMode").value })}`);
+        renderDocs(lastDocs);
+        $("docsStatus").textContent = "";
+      } catch (e) {
+        $("docsStatus").className = "status err";
+        $("docsStatus").textContent = `${t.error}: ${e.message}`;
+      } finally {
+        docsBusy = false;
+        $("docsBtn").disabled = false;
+        document.querySelectorAll("#docsChips button").forEach((b) => (b.disabled = false));
+      }
+    }
+    $("docsForm").onsubmit = (e) => { e.preventDefault(); askDocs(); };
+
+    // ---------- Task 2: Read Contract State ----------
+    $("preset").onchange = () => ($("custom").hidden = $("preset").value !== "custom");
+
+    async function read(params) {
+      const t = I18N[lang];
+      lastRead = params;
+      $("readBtn").disabled = true;
+      $("readStatus").className = "status";
+      $("readStatus").textContent = t.reading;
+      try {
+        const q = new URLSearchParams({ address: params.address, lang, ...(params.holder && { holder: params.holder }) });
+        const data = await getJson(`/api/read?${q}`);
+        $("blockBadge").textContent = t.block(data.rows[2][1]);
+        $("rows").innerHTML = data.rows
+          .map(([label, value, tag, isAddr]) => {
+            const shown = isAddr
+              ? `<span class="addr"><a href="${EXPLORER}/address/${escapeHtml(value)}" target="_blank" rel="noopener">${escapeHtml(value)}</a></span>`
+              : escapeHtml(value);
+            return `<tr><td>${escapeHtml(label)}</td><td>${shown}${tag ? `<span class="tag">${escapeHtml(tag)}</span>` : ""}</td></tr>`;
+          })
+          .join("");
+        $("summary").textContent = data.summary;
+        $("meta").innerHTML = `<a href="${data.explorer}" target="_blank" rel="noopener">${t.explorer}</a> · ${escapeHtml(t.calls(data.callCount, data.calls, (data.ms / 1000).toFixed(1)))}`;
+        $("result").hidden = false;
+        $("readStatus").textContent = "";
+      } catch (e) {
+        $("readStatus").className = "status err";
+        $("readStatus").textContent = `${t.error}: ${e.message}`;
+      } finally {
+        $("readBtn").disabled = false;
+      }
+    }
+
+    $("readForm").onsubmit = (e) => {
+      e.preventDefault();
+      const address = $("preset").value === "custom" ? $("custom").value.trim() : $("preset").value;
+      const holder = $("holder").value.trim();
+      const valid = (a) => /^0x[0-9a-fA-F]{40}$/.test(a);
+      if (($("preset").value === "custom" && !valid(address)) || (holder && !valid(holder))) {
+        $("readStatus").className = "status err";
+        $("readStatus").textContent = I18N[lang].invalid;
+        return;
+      }
+      read({ address, holder });
+    };
+
+    function addMessage(kind, text, steps = []) {
+      const p = document.createElement("div");
+      p.className = `msg ${kind}`;
+      p.innerHTML = (steps.length ? `<div class="steps">${steps.map(escapeHtml).join("<br>")}</div>` : "") + `<span>${kind === "bot" ? linkify(text) : escapeHtml(text)}</span>`;
+      $("chat").append(p);
+      $("chat").dataset.used = "1";
+      $("chat").scrollTop = $("chat").scrollHeight;
+      return p;
+    }
+
+    let asking = false;
+    const setAsking = (on) => {
+      asking = on;
+      $("askBtn").disabled = on;
+      document.querySelectorAll("#chips button").forEach((b) => (b.disabled = on));
+    };
+
+    async function ask(question) {
+      // One question at a time: follow-ups need the memory returned by the previous answer.
+      if (!question.trim() || asking) return;
+      addMessage("you", question);
+      const pending = addMessage("bot", I18N[lang].thinking);
+      setAsking(true);
+      try {
+        const q = new URLSearchParams({ q: question, lang: memory.language, ...(memory.contract && { contract: memory.contract }) });
+        const data = await getJson(`/api/ask?${q}`);
+        memory = data.memory;
+        pending.remove();
+        addMessage("bot", data.answer, data.steps);
+      } catch (e) {
+        pending.remove();
+        addMessage("bot", `${I18N[lang].error}: ${e.message}`);
+      } finally {
+        setAsking(false);
+      }
+    }
+
+    $("askForm").onsubmit = (e) => {
+      e.preventDefault();
+      const q = $("question").value;
+      $("question").value = "";
+      ask(q);
+    };
+
+    // ---------- Task 3: Event/Log Monitor ----------
+    const POLL_S = 5;
+    const MAX_ROWS = 300;
+    const mon = { running: false, token: null, head: null, events: [], keys: new Set(), fresh: 0, timer: null, tick: null, inFlight: false, info: null, status: "", error: false, generation: 0 };
+
+    function addressCell(addr, label) {
+      const shown = label ? `${escapeHtml(label)} <span class="tag">${shortHex(addr)}</span>` : `<span class="addr">${shortHex(addr)}</span>`;
+      return `<a href="${EXPLORER}/address/${addr}" target="_blank" rel="noopener" title="${addr}">${shown}</a>`;
+    }
+
+    function renderEvents() {
+      renderMonitorStatus();
+      renderEventList();
+    }
+
+    function renderMonitorStatus() {
+      const t = I18N[lang];
+      $("evBtn").textContent = mon.running ? t.evStop : t.evStart;
+      $("evBtn").className = mon.running ? "btn stop" : "btn";
+      const dot = mon.running || mon.head ? `<span class="dot ${mon.running && !mon.error ? "on" : ""}"></span>` : "";
+      $("evStatus").innerHTML = `<span class="live">${dot}${escapeHtml(mon.status)}</span>`;
+      $("evStatus").className = mon.error ? "status err" : "status";
+    }
+
+    function renderEventList() {
+      const t = I18N[lang];
+      $("evFilter").innerHTML = mon.info ? t.evFilter(mon.info.token, mon.info.topic, escapeHtml(mon.info.calls)) : "";
+      $("evListTitle").textContent = t.evList(mon.events.length, mon.fresh);
+      $("evEmpty").textContent = mon.events.length ? "" : mon.head ? t.evEmptyNone : t.evEmptyIdle;
+      $("evRows").innerHTML = mon.events
+        .map((e) => `<tr class="${e.isNew && !e.shown ? "new" : ""}">
+            <td class="num">${Number(e.block).toLocaleString(lang === "pt" ? "pt-BR" : "en-US")}</td>
+            <td><span class="kind ${e.kind}">${t.kinds[e.kind]}</span>${e.isNew ? `<span class="newtag">${t.evNew}</span>` : ""}</td>
+            <td class="num">${escapeHtml(e.amount[lang])} ${escapeHtml(mon.symbol)}</td>
+            <td>${addressCell(e.from, e.fromLabel[lang])}</td>
+            <td>${addressCell(e.to, e.toLabel[lang])}</td>
+            <td><a class="addr" href="${EXPLORER}/tx/${e.tx}" target="_blank" rel="noopener" title="${e.tx}">${shortHex(e.tx)}</a></td>
+          </tr>`)
+        .join("");
+      mon.events.forEach((e) => (e.shown = true));
+    }
+
+    function setStatus(text, error = false) {
+      mon.status = text;
+      mon.error = error;
+      renderMonitorStatus();
+    }
+
+    async function poll(generation) {
+      if (mon.inFlight === generation || generation !== mon.generation) return;
+      mon.inFlight = generation;
+      try {
+        const q = new URLSearchParams({ token: mon.token, ...(mon.head === null ? { lookback: $("evLookback").value } : { since: mon.head }) });
+        const data = await getJson(`/api/events?${q}`);
+        if (generation !== mon.generation) return;
+        const first = mon.head === null;
+        mon.symbol = data.symbol;
+        mon.info = { token: data.token, topic: data.topic, calls: data.calls };
+        const added = data.events.filter((e) => !mon.keys.has(e.key));
+        added.forEach((e) => {
+          mon.keys.add(e.key);
+          e.isNew = !first;
+        });
+        mon.fresh += first ? 0 : added.length;
+        mon.events = [...added.reverse(), ...mon.events].sort((a, b) => b.block - a.block).slice(0, MAX_ROWS);
+        mon.head = Math.max(mon.head ?? 0, data.head);
+        renderEventList();
+        countdown();
+      } catch (e) {
+        if (generation === mon.generation) {
+          clearInterval(mon.tick);
+          setStatus(I18N[lang].evRetry(e.message), true);
+        }
+      } finally {
+        if (mon.inFlight === generation) mon.inFlight = null;
+      }
+    }
+
+    function countdown() {
+      clearInterval(mon.tick);
+      let left = POLL_S;
+      const show = () => setStatus(I18N[lang].evLive(Number(mon.head).toLocaleString(lang === "pt" ? "pt-BR" : "en-US"), left));
+      show();
+      mon.tick = setInterval(() => { left = Math.max(0, left - 1); show(); }, 1000);
+    }
+
+    function startMonitor() {
+      stopMonitor();
+      const generation = ++mon.generation;
+      Object.assign(mon, { running: true, token: $("evToken").value, head: null, events: [], keys: new Set(), fresh: 0, info: null });
+      renderEventList();
+      setStatus(I18N[lang].evLoading);
+      poll(generation);
+      mon.timer = setInterval(() => poll(generation), POLL_S * 1000);
+    }
+
+    function stopMonitor() {
+      if (!mon.running) return;
+      mon.generation++;
+      mon.running = false;
+      clearInterval(mon.timer);
+      clearInterval(mon.tick);
+      setStatus(mon.head ? I18N[lang].evStopped(Number(mon.head).toLocaleString(lang === "pt" ? "pt-BR" : "en-US")) : "");
+    }
+
+    $("evBtn").onclick = () => (mon.running ? stopMonitor() : startMonitor());
+    $("evToken").onchange = () => { if (mon.running) startMonitor(); };
+
+    showTab(location.hash.slice(1));
+  </script>
+</body>
+</html>
